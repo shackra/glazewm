@@ -493,6 +493,15 @@ fn reposition_window(
 
           window.native().set_window_pos(z_order, &rect, swp_flags)?;
 
+          // RAIL windows (e.g. WSLg) don't propagate SetWindowPos
+          // resizes to the Linux app via RDP. Send an explicit
+          // WM_SIZE to notify msrdc.exe of the new dimensions.
+          if is_manage_override {
+            window
+              .native()
+              .notify_size_changed(rect.width(), rect.height())?;
+          }
+
           // When there's a mismatch between the DPI of the monitor and the
           // window, the window might be sized incorrectly after the first
           // move. If we set the position twice, inconsistencies after the

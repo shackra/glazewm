@@ -323,6 +323,19 @@ pub trait NativeWindowWindowsExt {
     &self,
     opacity_delta: &Delta<OpacityValue>,
   ) -> crate::Result<()>;
+
+  /// Sends a `WM_SIZE` message to notify the window of a size change.
+  /// Used for windows that don't respond to `SetWindowPos` resizes
+  /// (e.g. WSLg RAIL windows).
+  ///
+  /// # Platform-specific
+  ///
+  /// This method is only available on Windows.
+  fn notify_size_changed(
+    &self,
+    width: i32,
+    height: i32,
+  ) -> crate::Result<()>;
 }
 
 #[cfg(target_os = "windows")]
@@ -427,6 +440,14 @@ impl NativeWindowWindowsExt for NativeWindow {
     opacity_delta: &Delta<OpacityValue>,
   ) -> crate::Result<()> {
     self.inner.adjust_transparency(opacity_delta)
+  }
+
+  fn notify_size_changed(
+    &self,
+    width: i32,
+    height: i32,
+  ) -> crate::Result<()> {
+    self.inner.notify_size_changed(width, height)
   }
 }
 

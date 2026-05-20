@@ -35,8 +35,8 @@ use windows::{
         SWP_NOOWNERZORDER, SWP_NOSENDCHANGING, SWP_NOSIZE, SWP_NOZORDER,
         SWP_SHOWWINDOW, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE,
         SW_SHOWNA, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE,
-        WM_CLOSE, WPF_ASYNCWINDOWPLACEMENT, WS_DLGFRAME, WS_EX_LAYERED,
-        WS_THICKFRAME,
+        WM_CLOSE, WM_SIZE, WPF_ASYNCWINDOWPLACEMENT, WS_DLGFRAME,
+        WS_EX_LAYERED, WS_THICKFRAME,
       },
     },
   },
@@ -414,6 +414,27 @@ impl NativeWindow {
         rect.height(),
         flags,
       )
+    }?;
+
+    Ok(())
+  }
+
+  /// Sends a `WM_SIZE` message to the window, notifying it that its
+  /// size has changed. Used for windows (e.g. WSLg RAIL) that don't
+  /// respond to `SetWindowPos` resize on their own.
+  pub(crate) fn notify_size_changed(
+    &self,
+    width: i32,
+    height: i32,
+  ) -> crate::Result<()> {
+    #[allow(clippy::cast_possible_truncation)]
+    let lparam =
+      LPARAM(((height as u16 as usize) << 16 | width as u16 as usize) as _);
+
+    // SAFETY: Sends WM_SIZE with SIZE_RESTORED (0) to notify the
+    // window of its new dimensions.
+    unsafe {
+      SendNotifyMessageW(self.hwnd(), WM_SIZE, None, Some(lparam))
     }?;
 
     Ok(())
