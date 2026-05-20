@@ -29,6 +29,12 @@ pub struct UserConfig {
   /// Hashmap of window rule event types (e.g. `WindowRuleEvent::Manage`)
   /// and the corresponding window rules of that type.
   window_rules_by_event: HashMap<WindowRuleEvent, Vec<WindowRuleConfig>>,
+
+  /// Merged list of user-defined and default manage overrides. Windows
+  /// matching these entries bypass Win32 style checks in
+  /// `check_is_manageable()`.
+  #[cfg(target_os = "windows")]
+  pub manage_overrides: Vec<WindowMatchConfig>,
 }
 
 impl UserConfig {
@@ -51,6 +57,8 @@ impl UserConfig {
 
     Ok(Self {
       path: config_path,
+      #[cfg(target_os = "windows")]
+      manage_overrides: Self::merged_manage_overrides(&config_value),
       value: config_value,
       value_str: config_str,
       window_rules_by_event,
@@ -98,6 +106,10 @@ impl UserConfig {
 
     self.window_rules_by_event =
       Self::window_rules_by_event(&config_value);
+    #[cfg(target_os = "windows")]
+    {
+      self.manage_overrides = Self::merged_manage_overrides(&config_value);
+    }
     self.value = config_value;
     self.value_str = config_str;
 
@@ -185,6 +197,20 @@ impl UserConfig {
           }),
           ..WindowMatchConfig::default()
         },
+        WindowMatchConfig {
+          window_class: Some(MatchType::Equals {
+            // WSLg I/O helper window spawned by mstsc.exe on W11.
+            equals: "OPContainerClass".to_string(),
+          }),
+          ..WindowMatchConfig::default()
+        },
+        WindowMatchConfig {
+          window_class: Some(MatchType::Equals {
+            // WSLg I/O helper window spawned by mstsc.exe on W11.
+            equals: "IHWindowClass".to_string(),
+          }),
+          ..WindowMatchConfig::default()
+        },
       ],
       on: vec![WindowRuleEvent::Manage],
       run_once: true,
@@ -215,6 +241,67 @@ impl UserConfig {
     }
 
     window_rules_by_event
+  }
+
+  /// Returns the default manage overrides for known WSL2/WSLg X server
+  /// processes and other applications that lack standard window styles.
+  #[cfg(target_os = "windows")]
+  fn default_manage_overrides() -> Vec<WindowMatchConfig> {
+    vec![
+      // Flow Launcher lacks standard window styles.
+      WindowMatchConfig {
+        window_process: Some(MatchType::Equals {
+          equals: "Flow.Launcher".to_string(),
+        }),
+        window_title: Some(MatchType::Equals {
+          equals: "Flow.Launcher".to_string(),
+        }),
+        ..WindowMatchConfig::default()
+      },
+      // WSL2 GUI via X410.
+      WindowMatchConfig {
+        window_process: Some(MatchType::Equals {
+          equals: "X410.exe".to_string(),
+        }),
+        ..WindowMatchConfig::default()
+      },
+      // WSL2 GUI via VcXsrv.
+      WindowMatchConfig {
+        window_process: Some(MatchType::Equals {
+          equals: "vcxsrv.exe".to_string(),
+        }),
+        ..WindowMatchConfig::default()
+      },
+      // WSLg on Windows 11 (built-in RDP client).
+      WindowMatchConfig {
+        window_process: Some(MatchType::Equals {
+          equals: "msrdc.exe".to_string(),
+        }),
+        ..WindowMatchConfig::default()
+      },
+    ]
+  }
+
+  /// Merges user-defined manage overrides with the built-in defaults.
+  /// Entries where all match fields are `None` are excluded to prevent
+  /// accidentally matching all windows.
+  #[cfg(target_os = "windows")]
+  fn merged_manage_overrides(
+    config_value: &ParsedConfig,
+  ) -> Vec<WindowMatchConfig> {
+    let has_match_criteria = |m: &WindowMatchConfig| {
+      m.window_process.is_some()
+        || m.window_class.is_some()
+        || m.window_title.is_some()
+    };
+
+    config_value
+      .manage_overrides
+      .iter()
+      .filter(|m| has_match_criteria(m))
+      .cloned()
+      .chain(Self::default_manage_overrides())
+      .collect()
   }
 
   /// Window rules that should be applied to the window when the given

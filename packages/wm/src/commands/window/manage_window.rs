@@ -24,7 +24,7 @@ pub fn manage_window(
   config: &mut UserConfig,
 ) -> anyhow::Result<()> {
   let Some(native_properties) =
-    check_is_manageable(&native_window).unwrap_or(None)
+    check_is_manageable(&native_window, config).unwrap_or(None)
   else {
     return Ok(());
   };
@@ -90,6 +90,7 @@ pub fn manage_window(
 /// properties were retrieved successfully.
 fn check_is_manageable(
   native_window: &NativeWindow,
+  #[allow(unused_variables)] config: &UserConfig,
 ) -> anyhow::Result<Option<NativeWindowProperties>> {
   if !native_window.is_visible()? {
     return Ok(None);
@@ -117,13 +118,29 @@ fn check_is_manageable(
       WS_EX_TOOLWINDOW,
     };
 
-    // TODO: Temporary fix for managing Flow Launcher until a force manage
-    // command is added.
-    let is_flow_launcher = native_properties.process_name
-      == "Flow.Launcher"
-      && native_properties.title == "Flow.Launcher";
+    // Check if the window matches any manage override (e.g. WSL2 X
+    // server processes that lack standard Win32 window styles).
+    let is_manage_override =
+      config.manage_overrides.iter().any(|match_config| {
+        let is_process_match = match_config
+          .window_process
+          .as_ref()
+          .is_none_or(|m| m.is_match(&native_properties.process_name));
 
-    if !is_flow_launcher {
+        let is_class_match = match_config
+          .window_class
+          .as_ref()
+          .is_none_or(|m| m.is_match(&native_properties.class_name));
+
+        let is_title_match = match_config
+          .window_title
+          .as_ref()
+          .is_none_or(|m| m.is_match(&native_properties.title));
+
+        is_process_match && is_class_match && is_title_match
+      });
+
+    if !is_manage_override {
       // Ensure window is top-level (i.e. not a child window). Ignore
       // windows that cannot be focused or if they're unavailable in
       // task switcher (alt+tab menu).

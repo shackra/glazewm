@@ -13,6 +13,13 @@ pub struct ParsedConfig {
   pub gaps: GapsConfig,
   pub general: GeneralConfig,
   pub keybindings: Vec<KeybindingConfig>,
+
+  /// Windows that bypass standard Win32 style checks and are always
+  /// considered manageable. Useful for X server processes hosting
+  /// WSL2/WSLg GUI applications.
+  #[cfg(target_os = "windows")]
+  pub manage_overrides: Vec<WindowMatchConfig>,
+
   pub window_behavior: WindowBehaviorConfig,
   pub window_effects: WindowEffectsConfig,
   pub window_rules: Vec<WindowRuleConfig>,
