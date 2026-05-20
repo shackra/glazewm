@@ -475,12 +475,7 @@ fn reposition_window(
           window.native().set_window_pos(z_order, &rect, swp_flags)?;
         }
         _ => {
-          // RAIL windows lack a real Win32 frame; SWP_FRAMECHANGED
-          // triggers DWM frame processing that can destroy the RDP
-          // rendering surface.
-          if !is_manage_override {
-            swp_flags |= SWP_FRAMECHANGED;
-          }
+          swp_flags |= SWP_FRAMECHANGED;
 
           tracing::debug!(
             "set_window_pos: title={}, state={:?}, display={:?}, \
