@@ -434,7 +434,7 @@ impl NativeWindow {
     // SAFETY: Sends WM_SIZE with SIZE_RESTORED (0) to notify the
     // window of its new dimensions.
     unsafe {
-      SendNotifyMessageW(self.hwnd(), WM_SIZE, None, Some(lparam))
+      SendNotifyMessageW(self.hwnd(), WM_SIZE, None, lparam)
     }?;
 
     Ok(())
