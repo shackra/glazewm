@@ -49,7 +49,17 @@ pub fn platform_sync(
     let prev_effects_window = state.prev_effects_window.clone();
 
     if let Ok(window) = focused_container.as_window_container() {
-      apply_window_effects(&window, true, config);
+      // Skip window effects for manage-override windows (e.g. WSLg
+      // RAIL windows). DWM attribute modifications disrupt the RDP
+      // rendering pipeline.
+      #[cfg(target_os = "windows")]
+      let skip_effects = config.is_manage_override(&window);
+      #[cfg(not(target_os = "windows"))]
+      let skip_effects = false;
+
+      if !skip_effects {
+        apply_window_effects(&window, true, config);
+      }
       state.prev_effects_window = Some(window.clone());
     } else {
       state.prev_effects_window = None;
@@ -69,6 +79,10 @@ pub fn platform_sync(
       .filter(|window| window.id() != focused_container.id());
 
     for window in unfocused_windows {
+      #[cfg(target_os = "windows")]
+      if config.is_manage_override(&window) {
+        continue;
+      }
       apply_window_effects(&window, false, config);
     }
   }
