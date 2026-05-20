@@ -431,14 +431,18 @@ fn reposition_window(
       // flags must be adjusted to avoid disrupting their renderer.
       let is_manage_override = config.is_manage_override(window);
 
-      let mut swp_flags = SWP_NOACTIVATE | SWP_NOCOPYBITS;
-
-      // RDP RAIL windows (e.g. WSLg) need WM_WINDOWPOSCHANGING
-      // messages and synchronous positioning to maintain their
-      // rendering surface.
-      if !is_manage_override {
-        swp_flags |= SWP_NOSENDCHANGING | SWP_ASYNCWINDOWPOS;
-      }
+      // RDP RAIL windows (e.g. WSLg) need minimal SWP flags to
+      // avoid disrupting their rendering surface. They require
+      // WM_WINDOWPOSCHANGING messages, synchronous positioning,
+      // and client area content copying.
+      let mut swp_flags = if is_manage_override {
+        SWP_NOACTIVATE
+      } else {
+        SWP_NOACTIVATE
+          | SWP_NOCOPYBITS
+          | SWP_NOSENDCHANGING
+          | SWP_ASYNCWINDOWPOS
+      };
 
       match &window.state() {
         WindowState::Minimized => {
