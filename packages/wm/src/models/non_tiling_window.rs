@@ -69,7 +69,7 @@ impl NonTilingWindow {
       state,
       prev_state,
       insertion_target,
-      display_state: DisplayState::Shown,
+      display_state: DisplayState::Showing,
       border_delta,
       has_pending_dpi_adjustment: false,
       floating_placement,
