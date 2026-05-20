@@ -482,7 +482,7 @@ fn reposition_window(
             rect.height(),
             rect.left,
             rect.top,
-            swp_flags,
+            swp_flags.0,
             is_manage_override,
           );
 
