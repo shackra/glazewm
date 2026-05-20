@@ -253,10 +253,15 @@ fn redraw_containers(
     // of a window. See `NativeWindow::raise` for more details.
     #[cfg(target_os = "windows")]
     if should_bring_to_front && !windows_to_redraw.contains(window) {
-      tracing::info!("Updating window z-order: {window}");
+      // Skip z-order updates for manage-override windows (e.g. WSLg
+      // RAIL windows). Repeated SetWindowPos calls with SWP_SHOWWINDOW
+      // disrupt the RDP rendering surface.
+      if !config.is_manage_override(window) {
+        tracing::info!("Updating window z-order: {window}");
 
-      if let Err(err) = window.native().set_z_order(&z_order) {
-        tracing::warn!("Failed to set window z-order: {}", err);
+        if let Err(err) = window.native().set_z_order(&z_order) {
+          tracing::warn!("Failed to set window z-order: {}", err);
+        }
       }
     }
 
@@ -424,20 +429,7 @@ fn reposition_window(
       // Check if window is a manage override (e.g. WSLg RAIL window).
       // These windows lack standard Win32 frame/styles, so some SWP
       // flags must be adjusted to avoid disrupting their renderer.
-      let is_manage_override = {
-        let props = window.native_properties();
-        config.manage_overrides.iter().any(|m| {
-          m.window_process
-            .as_ref()
-            .is_none_or(|p| p.is_match(&props.process_name))
-            && m.window_class
-              .as_ref()
-              .is_none_or(|c| c.is_match(&props.class_name))
-            && m.window_title
-              .as_ref()
-              .is_none_or(|t| t.is_match(&props.title))
-        })
-      };
+      let is_manage_override = config.is_manage_override(window);
 
       let mut swp_flags = SWP_NOACTIVATE | SWP_NOCOPYBITS;
 

@@ -261,21 +261,21 @@ impl UserConfig {
       // WSL2 GUI via X410.
       WindowMatchConfig {
         window_process: Some(MatchType::Equals {
-          equals: "X410.exe".to_string(),
+          equals: "X410".to_string(),
         }),
         ..WindowMatchConfig::default()
       },
       // WSL2 GUI via VcXsrv.
       WindowMatchConfig {
         window_process: Some(MatchType::Equals {
-          equals: "vcxsrv.exe".to_string(),
+          equals: "vcxsrv".to_string(),
         }),
         ..WindowMatchConfig::default()
       },
       // WSLg on Windows 11 (built-in RDP client).
       WindowMatchConfig {
         window_process: Some(MatchType::Equals {
-          equals: "msrdc.exe".to_string(),
+          equals: "msrdc".to_string(),
         }),
         ..WindowMatchConfig::default()
       },
@@ -302,6 +302,25 @@ impl UserConfig {
       .cloned()
       .chain(Self::default_manage_overrides())
       .collect()
+  }
+
+  /// Whether the window matches any manage override entry. Windows that
+  /// match bypass standard Win32 style checks and may need special
+  /// handling during repositioning (e.g. adjusted `SetWindowPos` flags).
+  #[cfg(target_os = "windows")]
+  pub fn is_manage_override(&self, window: &WindowContainer) -> bool {
+    let props = window.native_properties();
+    self.manage_overrides.iter().any(|m| {
+      m.window_process
+        .as_ref()
+        .is_none_or(|p| p.is_match(&props.process_name))
+        && m.window_class
+          .as_ref()
+          .is_none_or(|c| c.is_match(&props.class_name))
+        && m.window_title
+          .as_ref()
+          .is_none_or(|t| t.is_match(&props.title))
+    })
   }
 
   /// Window rules that should be applied to the window when the given
