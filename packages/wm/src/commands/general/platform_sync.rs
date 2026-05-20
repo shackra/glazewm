@@ -421,10 +421,32 @@ fn reposition_window(
         window.native().restore(Some(&rect))?;
       }
 
-      let mut swp_flags = SWP_NOACTIVATE
-        | SWP_NOCOPYBITS
-        | SWP_NOSENDCHANGING
-        | SWP_ASYNCWINDOWPOS;
+      // Check if window is a manage override (e.g. WSLg RAIL window).
+      // These windows lack standard Win32 frame/styles, so some SWP
+      // flags must be adjusted to avoid disrupting their renderer.
+      let is_manage_override = {
+        let props = window.native_properties();
+        config.manage_overrides.iter().any(|m| {
+          m.window_process
+            .as_ref()
+            .is_none_or(|p| p.is_match(&props.process_name))
+            && m.window_class
+              .as_ref()
+              .is_none_or(|c| c.is_match(&props.class_name))
+            && m.window_title
+              .as_ref()
+              .is_none_or(|t| t.is_match(&props.title))
+        })
+      };
+
+      let mut swp_flags = SWP_NOACTIVATE | SWP_NOCOPYBITS;
+
+      // RDP RAIL windows (e.g. WSLg) need WM_WINDOWPOSCHANGING
+      // messages and synchronous positioning to maintain their
+      // rendering surface.
+      if !is_manage_override {
+        swp_flags |= SWP_NOSENDCHANGING | SWP_ASYNCWINDOWPOS;
+      }
 
       match &window.state() {
         WindowState::Minimized => {
@@ -443,7 +465,26 @@ fn reposition_window(
           window.native().set_window_pos(z_order, &rect, swp_flags)?;
         }
         _ => {
-          swp_flags |= SWP_FRAMECHANGED;
+          // RAIL windows lack a real Win32 frame; SWP_FRAMECHANGED
+          // triggers DWM frame processing that can destroy the RDP
+          // rendering surface.
+          if !is_manage_override {
+            swp_flags |= SWP_FRAMECHANGED;
+          }
+
+          tracing::debug!(
+            "set_window_pos: title={}, state={:?}, display={:?}, \
+             rect={}x{}@{},{}, flags=0x{:08X}, override={}",
+            window.native_properties().title,
+            window.state(),
+            window.display_state(),
+            rect.width(),
+            rect.height(),
+            rect.left,
+            rect.top,
+            swp_flags,
+            is_manage_override,
+          );
 
           window.native().set_window_pos(z_order, &rect, swp_flags)?;
 
@@ -465,6 +506,13 @@ fn reposition_window(
           window.display_state(),
           DisplayState::Showing | DisplayState::Hiding
         ) {
+          tracing::debug!(
+            "set_cloaked: title={}, cloaked={}, display={:?}, override={}",
+            window.native_properties().title,
+            !is_visible,
+            window.display_state(),
+            is_manage_override,
+          );
           window.native().set_cloaked(!is_visible)?;
         }
       } else if is_visible {
