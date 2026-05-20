@@ -457,9 +457,16 @@ fn reposition_window(
         }
       }
 
-      // Set visibility based on the hide method.
+      // Set visibility based on the hide method. For cloaking, only
+      // toggle when transitioning (Showing/Hiding) to avoid redundant
+      // COM calls that can disrupt RDP RAIL windows (e.g. WSLg).
       if config.value.general.hide_method == HideMethod::Cloak {
-        window.native().set_cloaked(!is_visible)?;
+        if matches!(
+          window.display_state(),
+          DisplayState::Showing | DisplayState::Hiding
+        ) {
+          window.native().set_cloaked(!is_visible)?;
+        }
       } else if is_visible {
         window.native().show()?;
       } else {
