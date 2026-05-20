@@ -490,20 +490,21 @@ fn reposition_window(
         }
       }
 
-      // Set visibility based on the hide method. For cloaking, only
-      // toggle when transitioning (Showing/Hiding) to avoid redundant
-      // COM calls that can disrupt RDP RAIL windows (e.g. WSLg).
-      if config.value.general.hide_method == HideMethod::Cloak {
+      // Set visibility based on the hide method. Manage-override
+      // windows (e.g. WSLg RAIL) cannot use IApplicationView cloaking
+      // as it disrupts the RDP rendering surface. Fall back to
+      // show/hide for those windows.
+      if !is_manage_override
+        && config.value.general.hide_method == HideMethod::Cloak
+      {
         if matches!(
           window.display_state(),
           DisplayState::Showing | DisplayState::Hiding
         ) {
           tracing::debug!(
-            "set_cloaked: title={}, cloaked={}, display={:?}, override={}",
+            "set_cloaked: title={}, cloaked={}",
             window.native_properties().title,
             !is_visible,
-            window.display_state(),
-            is_manage_override,
           );
           window.native().set_cloaked(!is_visible)?;
         }
